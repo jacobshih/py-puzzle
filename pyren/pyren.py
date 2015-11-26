@@ -116,7 +116,7 @@ def on_refresh_character(httpcode, response):
     global g_config
     if httpcode == 200:
         d_user = json.loads(response)
-        if g_config["refresh_log"]:
+        if refresh_log in g_config and g_config["refresh_log"] == "yes":
             refresh_log(d_user)
         fresh = d_user["fresh_character"] if "fresh_character" in d_user else 0
         if fresh is 1:
