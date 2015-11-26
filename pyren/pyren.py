@@ -145,12 +145,12 @@ def load_json():
     g_config = parse_json(g_config_file)
     if not check_refresh_interval():
         return
-    datadict = g_config["data"]
+    datadict = g_config["data"] if "data" in g_config else None
     method = g_config["method"]
     url = g_config["url"]
     httpcode, response = api_call(method, url, datadict)
     print "%d %s %s" % (httpcode, url, response)
-    if g_config["handler"]:
+    if "handler" in g_config:
         handler = "%s(%s,%s)" % (g_config["handler"], "httpcode", "response")
         eval(handler)
     pass
