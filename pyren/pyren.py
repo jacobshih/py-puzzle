@@ -84,7 +84,7 @@ def api_call(method, url, datadict):
     response = resp.read()
     headers = resp.info()
 
-    if k_content_type in headers and headers[k_content_type].index(k_json_gz) != -1:
+    if k_content_type in headers and headers[k_content_type].find(k_json_gz) != -1:
         response = decompress(response)
     return httpcode, response
 
