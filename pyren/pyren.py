@@ -149,7 +149,7 @@ def load_json():
     method = g_config["method"]
     url = g_config["url"]
     httpcode, response = api_call(method, url, datadict)
-    print "%d %s %s" % (httpcode, url, response)
+    print "%d %s %s" % (httpcode, url, response.decode("utf-8"))
     if "handler" in g_config:
         handler = "%s(%s,%s)" % (g_config["handler"], "httpcode", "response")
         eval(handler)
