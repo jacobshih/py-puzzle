@@ -24,7 +24,7 @@ def export(obj):
 @export
 class HTTP(object):
     REALM = None
-    TIMEOUT = 20
+    TIMEOUT = 5
 
 
 ################################################################################
@@ -119,6 +119,12 @@ class HttpClient(object):
     @classmethod
     def is_valid_method(cls, method):
         return True if method in cls.validMethods else False
+
+    def install_proxy(self, dict_proxy):
+        proxy = urllib2.ProxyHandler(dict_proxy)
+        self._opener = urllib2.build_opener(proxy)
+        urllib2.install_opener(self._opener)
+        pass
 
     def install_opener(self, opener):
         self._opener = opener

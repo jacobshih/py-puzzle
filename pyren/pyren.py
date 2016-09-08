@@ -1,6 +1,8 @@
+#! /usr/bin/env python
 ################################################################################
 import os
 import sys
+import urllib2
 
 if __name__ == "__main__":
     # prevent python from generating compiled byte code (.pyc).
@@ -31,6 +33,7 @@ def export(obj):
 ################################################################################
 # global constants
 k_path_log = "./log"
+k_file_skip = "skip"
 k_last_refresh = "last_refresh"
 k_interval = 1800
 
@@ -46,7 +49,7 @@ g_config_file = None
 g_httpclient = None
 
 
-def save_to_file(thepath, thefile, content):
+def write_to_file(thepath, thefile, content, append=False):
     if not content:
         content = {}
     data = Log.beautify_json(content) if type(content) is not str else content
@@ -55,7 +58,8 @@ def save_to_file(thepath, thefile, content):
         os.makedirs(thepath)
     try:
         filepath = "%s/%s" % (thepath, thefile)
-        with codecs.open(filepath, "w", "utf-8-sig") as f:
+        file_open_mode = "a" if append else "w"
+        with codecs.open(filepath, file_open_mode, "utf-8-sig") as f:
             f.write(unicode(data, "utf-8"))
             f.write("\r\n")
     except UnicodeDecodeError as e:
@@ -63,6 +67,14 @@ def save_to_file(thepath, thefile, content):
     except IOError as e:
         print "IOError: %s" % e
     pass
+
+
+def save_to_file(thepath, thefile, content):
+    write_to_file(thepath, thefile, content)
+
+
+def append_to_file(thepath, thefile, content):
+    write_to_file(thepath, thefile, content, append=True)
 
 
 def decompress(gz):
@@ -80,12 +92,17 @@ def api_call(method, url, datadict):
         resp = g_httpclient.post(url, datadict)
     else:
         resp = g_httpclient.get(url, datadict)
-    httpcode = resp.getcode()
-    response = resp.read()
-    headers = resp.info()
 
-    if k_content_type in headers and headers[k_content_type].find(k_json_gz) != -1:
-        response = decompress(response)
+    print urllib2.getproxies()
+    if type(resp) is tuple:
+        httpcode, response = resp
+    else:
+        httpcode = resp.getcode()
+        response = resp.read()
+        headers = resp.info()
+        if k_content_type in headers and headers[k_content_type].find(k_json_gz) != -1:
+            response = decompress(response)
+
     return httpcode, response
 
 
@@ -144,10 +161,14 @@ def load_json():
     g_config_file = sys.argv[2]
     g_config = parse_json(g_config_file)
     if not check_refresh_interval():
+        append_to_file(k_path_log, k_file_skip, str(datetime.datetime.now().strftime('%Y%m%d %H%M%S')))
         return
     datadict = g_config["data"] if "data" in g_config else None
     method = g_config["method"]
     url = g_config["url"]
+    if "proxy" in g_config:
+        print g_config["proxy"]
+        g_httpclient.install_proxy({'http': g_config["proxy"]})
     httpcode, response = api_call(method, url, datadict)
     print "%d %s %s" % (httpcode, url, response.decode("utf-8"))
     if "handler" in g_config:
