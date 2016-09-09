@@ -9,6 +9,7 @@ import locale
 import ssl
 import sys
 from urllib2 import HTTPError, URLError
+from urlparse import urlparse
 
 ################################################################################
 
@@ -58,12 +59,24 @@ class PreemptiveBasicAuthHandler(urllib2.HTTPBasicAuthHandler):
 # userinfo: a string combination of web username and password, separated by a colon.
 # timeout: http timeout. default 20 seconds.
 def deco_httpreq(f):
-    def d_f(that, url, data=None, userinfo=None):
+    def d_f(that, headers, url, data=None, userinfo=None):
         encoding = locale.getdefaultlocale()[1] or 'utf8'
         httpcode = 0
         try:
-            opener, url, data, timeout = f(that, url, data, userinfo)
-            resp = opener.open(url, data, timeout)
+            opener, proxy, method, headers, url, data, timeout = f(that, headers, url, data, userinfo)
+            if opener is not None:
+                resp = opener.open(url, data, timeout)
+            elif proxy is not None:
+                http_proxy = proxy['http']
+                if http_proxy is not None:
+                    o = urlparse(http_proxy)
+                    conn = httplib.HTTPConnection(o.hostname, o.port)
+                    conn.request(method, url, data, headers=headers)
+                    result = conn.getresponse()
+                    resp = {}
+                    resp["httpcode"] = result.status
+                    resp["response"] = result.read()
+                    resp["headers"] = result.msg
             return resp
         except URLError, e:
             r = {
@@ -121,9 +134,7 @@ class HttpClient(object):
         return True if method in cls.validMethods else False
 
     def install_proxy(self, dict_proxy):
-        proxy = urllib2.ProxyHandler(dict_proxy)
-        self._opener = urllib2.build_opener(proxy)
-        urllib2.install_opener(self._opener)
+        self._proxy = dict_proxy
         pass
 
     def install_opener(self, opener):
@@ -132,8 +143,14 @@ class HttpClient(object):
         pass
 
     @deco_httpreq
-    def get(self, url, data=None, userinfo=None, timeout=HTTP.TIMEOUT):
-        opener = self.get_opener(url, userinfo)
+    def get(self, headers, url, data=None, userinfo=None, timeout=HTTP.TIMEOUT):
+        method = 'Get'
+        if self._proxy is not None:
+            opener = None
+            proxy = self._proxy
+        else:
+            opener = self.get_opener(url, userinfo)
+            proxy = None
         if data is not None:
             # append data to url as query string, and reset data to None for get request.
             if isinstance(data, dict):
@@ -142,16 +159,24 @@ class HttpClient(object):
                 url += '?' + data.encode()
             data = None
             pass
-        return opener, url, data, timeout
+        return opener, proxy, method, headers, url, data, timeout
 
     @deco_httpreq
-    def post(self, url, data, userinfo=None, timeout=HTTP.TIMEOUT):
-        opener = self.get_opener(url, userinfo)
+    def post(self, headers, url, data, userinfo=None, timeout=HTTP.TIMEOUT):
+        method = 'Post'
+        if self._proxy is not None:
+            opener = None
+            proxy = self._proxy
+        else:
+            opener = self.get_opener(url, userinfo)
+            proxy = None
         if isinstance(data, dict):
             postdata = urllib.urlencode(data).encode()
         else:
             postdata = data.encode()
-        return opener, url, postdata, timeout
+        headers["Content-Length"] = len(postdata)
+        headers['Content-Type'] = 'application/x-www-form-urlencoded'
+        return opener, proxy, method, headers, url, postdata, timeout
 
     def get_opener(self, url, userinfo=None):
         if userinfo is None:

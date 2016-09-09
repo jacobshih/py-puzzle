@@ -88,18 +88,24 @@ def api_call(method, url, datadict):
         return
 
     global g_httpclient
+    headers = {}
+    headers['Accept'] = '*/*'
+    headers['Accept-Encoding'] = '*/*'
+    headers['Proxy-Connection'] = 'keep-alive'
+    headers['Connection'] = 'keep-alive'
     if method == "post":
-        resp = g_httpclient.post(url, datadict)
+        resp = g_httpclient.post(headers, url, datadict)
     else:
-        resp = g_httpclient.get(url, datadict)
+        resp = g_httpclient.get(headers, url, datadict)
 
-    print urllib2.getproxies()
     if type(resp) is tuple:
         httpcode, response = resp
     else:
-        httpcode = resp.getcode()
-        response = resp.read()
-        headers = resp.info()
+        if type(resp) is dict:  # via proxy by httplib.HttpConnection
+            httpcode, headers, response = resp["httpcode"], resp["headers"], resp["response"]
+        else:                   # direct access by urllib2
+            httpcode, headers, response = resp.getcode(), resp.info(), resp.read()
+
         if k_content_type in headers and headers[k_content_type].find(k_json_gz) != -1:
             response = decompress(response)
 
@@ -132,13 +138,16 @@ def refresh_log(data=None):
 def on_refresh_character(httpcode, response):
     global g_config
     if httpcode == 200:
-        d_user = json.loads(response)
-        if "refresh_log" in g_config and g_config["refresh_log"] == "yes":
-            refresh_log(d_user)
-        fresh = d_user["fresh_character"] if "fresh_character" in d_user else 0
-        if fresh is 1:
-            g_config[k_last_refresh] = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-            save_to_file(".", g_config_file, g_config)
+        try:
+            d_user = json.loads(response)
+            if "refresh_log" in g_config and g_config["refresh_log"] == "yes":
+                refresh_log(d_user)
+            fresh = d_user["fresh_character"] if "fresh_character" in d_user else 0
+            if fresh is 1:
+                g_config[k_last_refresh] = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+                save_to_file(".", g_config_file, g_config)
+        except ValueError as e:
+            print "ValueError: %s" % e
     pass
 
 
@@ -167,10 +176,9 @@ def load_json():
     method = g_config["method"]
     url = g_config["url"]
     if "proxy" in g_config:
-        print g_config["proxy"]
-        g_httpclient.install_proxy({'http': g_config["proxy"]})
+        g_httpclient.install_proxy(g_config["proxy"])
     httpcode, response = api_call(method, url, datadict)
-    print "%d %s %s" % (httpcode, url, response.decode("utf-8"))
+    print "%d %s %s" % (httpcode, url, response.decode("utf-8", 'ignore'))
     if "handler" in g_config:
         handler = "%s(%s,%s)" % (g_config["handler"], "httpcode", "response")
         eval(handler)
