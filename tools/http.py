@@ -111,6 +111,7 @@ def deco_httpreq(f):
 @export
 class HttpClient(object):
     validMethods = ('get', 'post')
+    _proxy = None
 
     def __init__(self, opener=None):
         self._opener = opener if opener is not None else urllib2.build_opener()
