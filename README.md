@@ -1,4 +1,4 @@
-pyzzle
+py-puzzle
 =======
 * pyren
 ```
